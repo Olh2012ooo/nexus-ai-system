@@ -516,6 +516,22 @@ def case_metadata() -> None:
     finally:
         shutil.rmtree(repo, ignore_errors=True)
 
+    # A bot identity is pseudonymous, not personal: it must not fail the gate.
+    repo = new_repo()
+    bot = "49699333+" + "dependabot[bot]" + "@users.noreply.github.com"
+    try:
+        write(repo, "file.txt", "plain\n")
+        subprocess.run(["git", "-C", repo, "add", "-A"], capture_output=True, env=GIT_ENV,
+                       check=True)
+        subprocess.run(["git", "-C", repo, "commit", "-qm", "ci: bump"],
+                       capture_output=True, check=True,
+                       env=dict(GIT_ENV, GIT_AUTHOR_NAME="dependabot[bot]",
+                                GIT_AUTHOR_EMAIL=bot, GIT_COMMITTER_NAME="dependabot[bot]",
+                                GIT_COMMITTER_EMAIL=bot))
+        expect("GitHub bot identity is allowed", repo, 0, "--history")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
     # A submodule entry points at a commit that is not in this repository: unverifiable.
     repo = new_repo()
     try:
