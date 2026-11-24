@@ -1,0 +1,12 @@
+version: 2
+
+# Only the Actions used by this repository. There are no language dependencies to track:
+# every script uses the Python standard library.
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"

@@ -34,8 +34,8 @@
 
 Before any change of visibility: a clean scan of the tree, the index and the full history, no
 hostnames/addresses/paths/account names, no personal identity in commit metadata, no prompt
-text, no logs or databases, no personal spend, and an approved licence. Until then no licence
-file exists and no rights are granted. The scan runs locally and in CI on every push; it is
+text, no logs or databases, no personal spend, and a declared licence. This repository is
+licensed GPL-3.0-only; see [LICENSE](../LICENSE). The scan runs locally and in CI on every push; it is
 not a git hook, and CI covers only what the workflow runs.
 
 **Cost and usage figures.** Only a normalised rate per token volume and the token mix are

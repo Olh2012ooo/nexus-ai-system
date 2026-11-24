@@ -4,11 +4,33 @@
 specialist profiles execute, remote machines run the commands, and every result is read back
 before it is called done.
 
-**Created:** 2026-11-20 · **Private** · **Licence:** pending owner approval
+**Licence:** GPL-3.0-only · **Status:** private, pre-release
 
 ![System overview](diagrams/system-overview.svg)
 
 ---
+
+## WHAT THIS REPOSITORY IS
+
+This is the **architecture and verification repository** for a working Nexus installation. It
+contains:
+
+- the system design: agents, orchestration, task board, caching and cost model;
+- the diagrams, generated from source;
+- the tooling that verifies all of it — a publication/secret scanner, a cost calculator, a link
+  checker and a diagram validator, each with tests.
+
+It does **not** contain the agent runtime itself. Nexus runs on a Hermes installation, which is
+a separate program; nothing here can be `pip install`ed and used as an agent. What you can do is
+read the design, run the numbers and re-run every check that guards this documentation.
+
+## THE PROBLEM IT SOLVES
+
+A single long-running agent accumulates context until cost and coherence collapse: every turn
+re-sends everything, quality drifts, and one session has to hold planning, implementation,
+research and review at once. Nexus splits that into an orchestrator plus four specialist
+profiles, keeps each context small and focused, executes shell work on machines that hold no
+credentials, and records every task on a durable board so work survives a restart.
 
 ## WHY NEXUS?
 
@@ -16,12 +38,12 @@ before it is called done.
   work inside their own session, persona and workspace.
 - **Append-only conversation.** History is only extended, never rewritten — which is what makes
   provider-side prompt caching work.
-- **Execution is distributed, reasoning is not.** Remote nodes run shell commands; no model
-  runs anywhere but the control node.
+- **Execution is distributed, reasoning is not.** Remote nodes run shell commands; no model runs
+  anywhere but the control node.
 - **Tasks are durable.** A SQLite-backed board holds state, claims tasks atomically and closes
   them only with evidence.
-- **Costs are calculated, not asserted.** One comparison, one workload, every assumption
-  written down.
+- **Costs are calculated, not asserted.** One comparison, one workload, every assumption written
+  down — and the calculator is in the repository.
 
 ## ARCHITECTURE OVERVIEW
 
@@ -48,19 +70,51 @@ Deeper: [architecture](docs/architecture.md) · [infrastructure](docs/infrastruc
 
 ![Agent architecture](diagrams/agent-architecture.svg)
 
-They are **profiles in one installation**, not five servers, and they run the **same model**.
-A delegated child gets its own persona, memory and workspace, plus the payload its parent wrote
-— and nothing else. Independence in review is procedural, not model-based.
+They are **profiles in one installation**, not five servers, and they run the **same model and
+the same tool configuration**. A delegated child gets its own persona, memory and workspace,
+plus the payload its parent wrote — and nothing else. Independence in review is procedural, not
+model-based, and a role is not a privilege boundary.
 
 Deeper: [roles](docs/roles.md)
+
+## HOW THE ORCHESTRATOR WORKS
+
+1. A request arrives on the gateway and becomes a session with its own transcript.
+2. Nexus decides whether one context can finish the work.
+3. Independent parts are delegated: the child gets a goal, a payload, and a profile to run as.
+4. Tools run — locally, over SSH, or through the GUI layer.
+5. Results are read back — file, hash, exit code, row — before anyone calls them done.
+6. The task board records the outcome; documentation mirrors the board.
+
+Limits are deliberate: four children per batch, one level of delegation, 60 iterations each, and
+a child cannot delegate further. Deeper: [kanban](docs/kanban.md)
+
+## STATE AND MEMORY
+
+| Store | Holds | Lifetime |
+|---|---|---|
+| Session store | One row per conversation, with per-model token accounting | Persistent |
+| Task boards | One SQLite board per project stream; authoritative task state | Persistent |
+| Profile memory | Durable notes per profile, injected each turn | Persistent |
+| Context window | The live conversation, append-only | One session |
+
+Nothing is shared between a parent and a child beyond the payload the parent writes. That is why
+a delegated agent cannot "remember" what the orchestrator never told it.
+
+## MODEL INTEGRATION
+
+One provider connection serves all profiles. Requests are stateless chat completions with tool
+schemas; the provider keeps a prompt-prefix cache, which is the only cache in the system. Model
+names, prices and context limits are documented in [economics](docs/economics.md); no endpoint,
+credential or account identifier is part of this repository.
 
 ## MACHINE INFRASTRUCTURE
 
 ![Infrastructure](diagrams/infrastructure.svg)
 
 One control node holds all reasoning and state. Four remote nodes are shell targets with no
-runtime and no credentials. One Windows workstation exposes GUI automation through an MCP
-server started over SSH. There is no shared filesystem, no failover and no cross-node scheduler.
+runtime and no credentials. One Windows workstation exposes GUI automation through an MCP server
+started over SSH. There is no shared filesystem, no failover and no cross-node scheduler.
 
 Deeper: [infrastructure](docs/infrastructure.md)
 
@@ -74,8 +128,6 @@ result (approving out of `review` is the one exemption). The CLI checks that evi
 not what it says — that is the reviewer's job. Review is a separate session that receives
 artefacts, not the author's conclusion.
 
-Deeper: [kanban](docs/kanban.md)
-
 ## PERFORMANCE AND CACHING
 
 ![Caching](diagrams/caching-architecture.svg)
@@ -86,12 +138,11 @@ Deeper: [kanban](docs/kanban.md)
 | Scope | the orchestrator's own API calls, token-weighted |
 
 The provider caches prompt prefixes; the agent loop only appends, so every token before the
-newest turn is a candidate hit. This is a **fixed measurement over a recorded set of calls**,
-not a live average and not a benchmark; the underlying counters are not published. A hit rate is also **not** a discount: output tokens are unaffected.
-The figure covers the orchestrator's own traffic; delegated child sessions are separate and
-excluded. The cost model below uses a different, shorter window (99.2 %) — see [caching](docs/caching.md).
-
-Deeper: [caching](docs/caching.md)
+newest turn is a candidate hit. This is a **fixed measurement over a recorded set of calls**, not
+a live average and not a benchmark; the underlying counters are not published. A hit rate is
+also **not** a discount: output tokens are unaffected. The figure covers the orchestrator's own
+traffic; delegated child sessions are separate and excluded. The cost model below uses a
+different, shorter window (99.2 %) — see [caching](docs/caching.md).
 
 ## COST MODEL
 
@@ -107,10 +158,10 @@ Deeper: [caching](docs/caching.md)
 tokens.**
 
 The Nexus figure is a normalised rate — **$6.41 per billion tokens → 62 NOK** — from one
-aggregated, undated observation (0.39 % output, 99.2 % of input cached), calculated from
-runtime token volumes at published DeepSeek prices. Absolute spend and raw volumes are not
-published; the rate and the mix are. It is not a provider report and not an invoice. Because
-the output share is only ~0.39 %, it is **not** a general price per billion tokens.
+aggregated, undated observation (0.39 % output, 99.2 % of input cached), calculated from runtime
+token volumes at published DeepSeek prices. Absolute spend and raw volumes are not published; the
+rate and the mix are. It is not a provider report and not an invoice. Because the output share is
+only ~0.39 %, it is **not** a general price per billion tokens.
 
 Claude keeps its documented assumptions: Opus 5.5 at $4.00/M input, $0.20/M cache read, $8.00/M
 one-hour cache write, $20.00/M output, 80 % cache hit and a 20.42 % output share, USD/NOK 9.6866.
@@ -121,55 +172,95 @@ column is 124 NOK and the ratio 428×.
 The two columns are **not mix-adjusted** — each is per billion tokens at its own token mix — so
 856× combines model price, caching and workload shape. These are **estimates of API token cost,
 not invoices**, and not evidence that Nexus is 856× smarter, faster or better at tasks. Reproduce
-with [`calculations/recompute.py`](calculations/recompute.py).
+with [`calculations/recompute.py`](calculations/recompute.py). Deeper: [economics](docs/economics.md)
 
-Deeper: [economics](docs/economics.md)
-
-## SECURITY AND LIMITATIONS
+## SECURITY
 
 - Content is data, never instruction. Credentials stay on the control node and never reach
   execution nodes.
 - GUI automation is high privilege: the policy is report-and-stop, never accept an elevation
   prompt.
-- Publication requires a clean fail-closed scan of the working tree, the git index, every
-  commit, ref, path and identity, plus isolated tests. It runs locally and in the
-  `publication-check` workflow; neither is a git hook, and neither can prove that a scan found
-  everything.
+- Publication requires a clean fail-closed scan of the working tree, the git index, every commit,
+  ref, path and identity, plus isolated tests. It runs locally and in the `publication-check`
+  workflow; neither is a git hook, and neither can prove that a scan found everything.
 
 **Not measured:** cost per completed task · quality per task · net effect of delegation ·
 deferred-tool effect · cold provider cache · effect of review on error rate.
 
-Deeper: [security](docs/security.md) · [SECURITY.md](SECURITY.md)
+Deeper: [security](docs/security.md) · report a vulnerability per [SECURITY.md](SECURITY.md)
 
-## TECHNICAL DOCUMENTATION
+## REQUIREMENTS
 
-| Document | Contents |
-|---|---|
-| [architecture](docs/architecture.md) | Layers, request flow, delegation contract, state |
-| [roles](docs/roles.md) | The five profiles, what they share, limits |
-| [infrastructure](docs/infrastructure.md) | Nodes, transports, services, what is not distributed |
-| [kanban](docs/kanban.md) | Task lifecycle, dispatch, completion evidence |
-| [caching](docs/caching.md) | Prefix caching, what breaks it, what it is worth |
-| [economics](docs/economics.md) | Prices, assumptions, arithmetic, limitations |
-| [security](docs/security.md) | Trust boundaries, capabilities, scanner coverage |
+- Python **3.9+** (standard library only, no third-party packages)
+- Git
+- Any OS with a POSIX shell; the tooling is pure Python and portable
 
-## VERIFY IT YOURSELF
+Optional: `gitleaks` or `detect-secrets`, if you want a second opinion on the scanner.
 
-Everything above is checked by scripts in this repository. No dependencies beyond Python 3 and
-git.
+## CONFIGURATION
+
+None. The repository is documentation and tooling: there are no environment variables, no
+config files, no credentials and no network calls in any script. Every path is taken from the
+repository root.
+
+## HOW TO RUN IT
+
+There is nothing to install. From the repository root:
 
 ```bash
-python3 tools/test_scan_publication.py    # scanner behaviour, isolated repositories
-python3 tools/scan_publication.py --history   # tree, index, history, names
-python3 tools/test_recompute.py           # calculator output and argument validation
-python3 calculations/recompute.py         # the published cost figures
-python3 tools/check_links.py              # relative links
-python3 tools/check_diagrams.py           # SVG well-formedness and text bounds
+python3 calculations/recompute.py             # the cost comparison, from published prices
+python3 tools/scan_publication.py --history   # scan tree, index, history, names
+python3 tools/check_links.py                  # every relative link resolves
+python3 tools/check_diagrams.py               # every SVG parses and fits its canvas
 ```
 
-The same commands run in `.github/workflows/publication-check.yml` on every push.
+Regenerate the diagrams after changing any figure:
 
----
+```bash
+python3 diagrams/render.py
+```
 
-*Private repository. Nothing here is published, and no rights are granted while the licence
-decision is pending.*
+## HOW TO VERIFY IT
+
+The tests are the contract. They build throwaway repositories in a temporary directory and
+assert the scanner's verdict, not that a function was called.
+
+```bash
+python3 tools/test_scan_publication.py   # 77 cases: bypasses, fail-closed states, names, refs
+python3 tools/test_recompute.py          # 33 cases: published figures and argument validation
+```
+
+All six commands above also run in `.github/workflows/publication-check.yml` on every push.
+
+## REPOSITORY LAYOUT
+
+```
+README.md          this file
+LICENSE            GNU GPL v3.0 (unmodified)
+SECURITY.md        vulnerability reporting and the publication gate
+CONTRIBUTING.md    how to propose a change
+docs/              seven documents: architecture, roles, infrastructure, kanban,
+                   caching, economics, security
+diagrams/          seven SVGs plus render.py, which generates them
+calculations/      recompute.py, the cost calculator
+tools/             scanner, its tests, link checker, diagram validator, calculator tests
+.github/           the publication-check workflow and dependency updates
+```
+
+## CONTRIBUTING
+
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: it covers
+the development setup, the conventions (standard library only, no secrets, tests for behaviour),
+and what a reviewable pull request looks like.
+
+## LICENCE
+
+Nexus is free software: you can redistribute it and/or modify it under the terms of the **GNU
+General Public License, version 3.0 only** (SPDX: `GPL-3.0-only`), as published by the Free
+Software Foundation.
+
+The full licence text is in [LICENSE](LICENSE). It is distributed WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+licence for details.
+
+Copyright (C) 2026 NEXUS project contributors.

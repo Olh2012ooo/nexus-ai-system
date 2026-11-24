@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 NEXUS project contributors
 """Render the six project diagrams as SVG.
 
 One visual system for all of them: neutral canvas, one accent per meaning, 12–15 px labels,
@@ -294,7 +296,7 @@ def security_boundaries() -> Svg:
     s.arrow(812, 250, 732, 260, "inspect", RED, "r", dashed=True)
     s.box(44, 432, 1112, 92, "publication rules",
           ["no credentials · no hostnames, addresses or domains · no prompts or personas",
-           "no logs, databases or transcripts · no personal spend · licence approved by the owner"], GREEN)
+           "no logs, databases or transcripts · no personal spend · licence: GPL-3.0-only"], GREEN)
     s.note(44, 556, "Publication needs a clean fail-closed scan of tree, index, history and names — run locally and in CI, not as a git hook.")
     s.note(44, 578, "A clean scan means no finding of the kinds we detect — not a guarantee of absence.")
     return s

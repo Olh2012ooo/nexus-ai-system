@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 NEXUS project contributors
 """Cost calculator for the published comparison.
 
 Two columns, one workload unit (1 billion tokens):

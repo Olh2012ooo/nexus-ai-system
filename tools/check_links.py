@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 NEXUS project contributors
 """Check that every relative markdown link and image in the repository resolves.
 
 Ignores absolute URLs and in-page anchors. Exits 1 on any broken link.

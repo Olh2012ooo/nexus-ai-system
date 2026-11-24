@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 NEXUS project contributors
 """Publication scanner: working tree, git index, history, names and metadata.
 
 Checks four surfaces and treats anything it cannot verify as a failure:
@@ -53,6 +55,8 @@ ALLOW_DOMAINS = {
     "platform.claude.com", "claude.com", "openai.com", "ai.google.dev", "github.com",
     "docs.python.org", "sqlite.org", "ubuntu.com", "www.w3.org", "w3.org",
     "api-docs.deepseek.com", "hermes-agent.nousresearch.com", "nousresearch.com",
+    # The unmodified GPL text links to these.
+    "gnu.org", "www.gnu.org", "fsf.org", "www.fsf.org", "savannah.gnu.org",
 }
 # Internal-only suffixes. A public name never ends like this.
 INTERNAL_SUFFIXES = tuple("." + s for s in (

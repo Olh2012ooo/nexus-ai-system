@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 NEXUS project contributors
 """Isolated tests for the publication scanner.
 
 Every case builds a throwaway repository in a temporary directory. Fake credentials are
@@ -48,7 +50,8 @@ IDENTITY_MAIL = parts("real", ".person@company", ".example")
 ENTROPY = parts("Zx9Q", "w8Er", "7Ty6", "Ui5O", "p4As", "3Df2", "Gh1J", "k0Lm")
 HEX_SECRET = parts("9f2c", "41ab", "7d38", "e504", "6b1a", "c2f7", "8d90", "1e3b",
                    "4a6c", "5f82", "0d7e", "3c91", "ab46", "2d8f", "5e07", "c3a4")
-GIT_SHA = "a944840f9e1a99ddd05ddd0a3d876f7f0470f208"
+# A synthetic 40-character object id: shape only, not a credential.
+GIT_SHA = "a944840f9e1a99ddd05ddd0a3d876f7f0470f208"  # pragma: allowlist secret
 SPACED = "notes with spaces.txt"
 UNICODE_NAME = "notat med æøå.txt"
 NEWLINE_NAME = "inject\nname.txt"
