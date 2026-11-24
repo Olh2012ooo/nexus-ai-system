@@ -118,14 +118,27 @@ def is_ipv4(text: str) -> bool:
         return False
 
 
+# GitHub's noreply addresses are pseudonymous by construction: a bot login or a user id, not a
+# personal mailbox. They appear in Dependabot commits and in every squash-merge by a GitHub user.
+PSEUDONYMOUS_DOMAINS = ("users.noreply.github.com",)
+# Role addresses GitHub itself stamps on bot commits; not personal mailboxes.
+ROLE_ADDRESSES = {"noreply@github.com", "support@github.com"}
+
+
 def _domain_is_allowed(d: str) -> bool:
     d = d.lower()
-    return d in ALLOW_DOMAINS or d.endswith((".example.com", ".example.invalid"))
+    if d in ALLOW_DOMAINS or d.endswith((".example.com", ".example.invalid")):
+        return True
+    return any(d == p or d.endswith("." + p) for p in PSEUDONYMOUS_DOMAINS)
 
 
 def _email_is_allowed(value: str) -> bool:
+    if value.lower() in ROLE_ADDRESSES:
+        return True
     domain = value.rsplit("@", 1)[-1].lower()
-    return domain in {"example.com", "example.invalid"}
+    if domain in {"example.com", "example.invalid"}:
+        return True
+    return any(domain == p or domain.endswith("." + p) for p in PSEUDONYMOUS_DOMAINS)
 
 
 def scan_text(text: str, label: str) -> list[tuple[str, str]]:

@@ -60,7 +60,9 @@ python3 tools/test_scan_publication.py        # isolated fail/pass cases
   newlines, binary content, symlink targets, every ref and whatever it points at (commit tree,
   tree, blob, annotated tag chain), and the names of every file, directory and ref. With
   `--history` (always used for the publication gate): every commit message, author and committer
-  identity, reflog subject, unreachable blob and deleted annotated tag.
+  identity, reflog subject, unreachable blob and deleted annotated tag. GitHub's pseudonymous
+  `users.noreply.github.com` addresses and its `noreply@`/`support@` role addresses are allowed;
+  a real personal address is not.
 - **Replacement refs.** Git runs with `--no-replace-objects`, so `refs/replace/*` cannot make the
   scan see a history different from the one a push would transmit; the ref itself is reported for
   manual review.
