@@ -4,7 +4,7 @@
 specialist profiles execute, remote machines run the commands, and every result is read back
 before it is called done.
 
-**Licence:** GPL-3.0-only · **Status:** private, pre-release
+**Licence:** GPL-3.0-only · **Status:** pre-release, no tagged version yet
 
 ![System overview](diagrams/system-overview.svg)
 
