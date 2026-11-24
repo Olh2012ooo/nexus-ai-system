@@ -4,7 +4,8 @@
 specialist profiles execute, remote machines run the commands, and every result is read back
 before it is called done.
 
-**Licence:** GPL-3.0-only · **Status:** pre-release, no tagged version yet
+**Licence:** GPL-3.0-only · **Status:** stable release **v1.0.0** — the first stable release
+([release notes](CHANGELOG.md))
 
 ![System overview](diagrams/system-overview.svg)
 
@@ -237,6 +238,7 @@ All six commands above also run in `.github/workflows/publication-check.yml` on 
 
 ```
 README.md          this file
+CHANGELOG.md       release history, starting at v1.0.0
 LICENSE            GNU GPL v3.0 (unmodified)
 SECURITY.md        vulnerability reporting and the publication gate
 CONTRIBUTING.md    how to propose a change

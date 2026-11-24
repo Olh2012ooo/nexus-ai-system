@@ -57,6 +57,8 @@ ALLOW_DOMAINS = {
     "api-docs.deepseek.com", "hermes-agent.nousresearch.com", "nousresearch.com",
     # The unmodified GPL text links to these.
     "gnu.org", "www.gnu.org", "fsf.org", "www.fsf.org", "savannah.gnu.org",
+    # Referenced by CHANGELOG.md.
+    "keepachangelog.com", "semver.org",
 }
 # Internal-only suffixes. A public name never ends like this.
 INTERNAL_SUFFIXES = tuple("." + s for s in (
