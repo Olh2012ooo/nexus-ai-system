@@ -1,0 +1,46 @@
+name: publication-check
+
+# Extra publication gate. It is not a substitute for a local full-history scan: it runs the
+# same scripts, but only a human can decide that a finding-free result is also meaningful.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the history scan needs every commit, not a shallow clone
+
+      - name: Toolchain
+        run: python3 --version && git --version
+
+      - name: Scanner tests
+        run: python3 tools/test_scan_publication.py
+
+      - name: Calculator tests
+        run: python3 tools/test_recompute.py
+
+      - name: Publication scan (tree, index, history, names)
+        run: python3 tools/scan_publication.py --history
+
+      - name: Calculator reproduces the published figures
+        run: python3 calculations/recompute.py
+
+      - name: Relative links
+        run: python3 tools/check_links.py
+
+      - name: Diagrams are valid and fit their canvas
+        run: python3 tools/check_diagrams.py
+
+      - name: Python syntax
+        run: |
+          # Keep bytecode out of the tree: the scan counts skipped .pyc files, and a clean
+          # tree should stay clean after this step.
+          PYTHONPYCACHEPREFIX="$(mktemp -d)" python3 -m py_compile $(git ls-files '*.py')
