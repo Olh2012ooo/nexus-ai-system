@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 NEXUS project contributors
 """Validate the generated diagrams: well-formed XML, and no text outside the viewBox.
 
 The width estimate is deliberately generous: it catches clipped or overflowing labels, not
