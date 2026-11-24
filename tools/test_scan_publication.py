@@ -50,8 +50,6 @@ IDENTITY_MAIL = parts("real", ".person@company", ".example")
 ENTROPY = parts("Zx9Q", "w8Er", "7Ty6", "Ui5O", "p4As", "3Df2", "Gh1J", "k0Lm")
 HEX_SECRET = parts("9f2c", "41ab", "7d38", "e504", "6b1a", "c2f7", "8d90", "1e3b",
                    "4a6c", "5f82", "0d7e", "3c91", "ab46", "2d8f", "5e07", "c3a4")
-# A synthetic 40-character object id: shape only, not a credential.
-GIT_SHA = "0000000000000000000000000000000000000000"  # pragma: allowlist secret
 SPACED = "notes with spaces.txt"
 UNICODE_NAME = "notat med æøå.txt"
 NEWLINE_NAME = "inject\nname.txt"
@@ -138,8 +136,6 @@ def case_content() -> None:
         ("internal hostname suffix", {"hosts.md": "host " + INTERNAL_HOST + "\n"}, 1, ()),
         ("high entropy blob", {"blob.bin": ENTROPY + "\n"}, 1, ()),
         ("64-char hex secret", {"config.txt": "key=" + HEX_SECRET + "\n"}, 1, ()),
-        ("40-char git object id is allowed",
-         {"CHANGELOG.md": "commit " + GIT_SHA + " fixes the thing\n"}, 0, ()),
         ("binary content with token",
          {"image.png": b"\x89PNG\r\n\x1a\n" + FAKE_GH.encode() + b"\x00\xff"}, 1, ()),
         ("filename with spaces", {SPACED: "token " + FAKE_GH + "\n"}, 1, ()),
@@ -157,6 +153,33 @@ def case_content() -> None:
             expect(name, repo, code, secrets=(FAKE_GH, FAKE_SK, FAKE_KEY, ENTROPY))
         finally:
             shutil.rmtree(repo, ignore_errors=True)
+
+    # A real object id in this repository is data, not a secret.
+    repo = new_repo()
+    try:
+        write(repo, "README.md", "text\n")
+        commit(repo)
+        sha = git(repo, "rev-parse", "HEAD").stdout.strip()
+        write(repo, "CHANGELOG.md", "commit " + sha + " fixes the thing\n")
+        expect("real git object id is allowed", repo, 0)
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+    # A 40-character hex string that is *not* an object id is a secret-shaped value.
+    hex40 = ENTROPY[:20] + HEX_SECRET[:20]
+    repo = new_repo()
+    try:
+        write(repo, "config.txt", "key=" + hex40 + "\n")
+        expect("40-char hex that is not an object id", repo, 1)
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+    repo = new_repo()
+    try:
+        write(repo, HEX_SECRET[:40] + ".bin", "text\n")
+        expect("40-char hex in a filename that is not an object id", repo, 1)
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
 
 
 # ------------------------------------------------------------------------------ git index
@@ -538,7 +561,7 @@ def case_metadata() -> None:
         write(repo, "README.md", "text\n")
         commit(repo)
         git(repo, "update-index", "--add", "--cacheinfo",
-            "160000,1111111111111111111111111111111111111111,vendor/lib")
+            "160000," + "1" * 40 + ",vendor/lib")
         expect("submodule entry fails closed", repo, 2)
     finally:
         shutil.rmtree(repo, ignore_errors=True)

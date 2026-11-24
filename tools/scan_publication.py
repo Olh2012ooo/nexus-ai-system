@@ -141,6 +141,21 @@ def _email_is_allowed(value: str) -> bool:
     return any(domain == p or domain.endswith("." + p) for p in PSEUDONYMOUS_DOMAINS)
 
 
+# Object ids that actually exist in the repository under scan. Populated once from every ref
+# and from fsck, so a long hex string can be exempted only when git itself confirms it is an
+# object — not merely because it is 40 characters long.
+KNOWN_OBJECTS: set[str] = set()
+
+
+def register_objects(ids) -> None:
+    KNOWN_OBJECTS.clear()
+    KNOWN_OBJECTS.update(str(i).lower() for i in ids if i)
+
+
+def is_known_object_id(token: str) -> bool:
+    return token.lower() in KNOWN_OBJECTS
+
+
 def scan_text(text: str, label: str) -> list[tuple[str, str]]:
     """Scan decoded text for secret and identity shapes."""
     hits: list[tuple[str, str]] = []
@@ -169,11 +184,14 @@ def scan_text(text: str, label: str) -> list[tuple[str, str]]:
             hits.append(("high-entropy", label))
             break
     for m in HEX_TOKEN.finditer(text):
-        # Exactly 40 hex characters is almost always a git object id; every other long hex run
-        # (32-39, 41+) counts as a possible key. The carve-out is documented in SECURITY.md.
-        if len(m.group(0)) != 40:
-            hits.append(("hex-secret", label))
-            break
+        tok = m.group(0)
+        # Exempt only what can be justified: a string git confirms is an object id in this
+        # repository (SHA-1 or SHA-256), or a degenerate placeholder such as 1111...1111 that
+        # cannot carry secret entropy. Length alone is not evidence.
+        if is_known_object_id(tok) or shannon(tok) < 2.0:
+            continue
+        hits.append(("hex-secret", label))
+        break
     return hits
 
 
@@ -208,9 +226,11 @@ def scan_name(name: str, label: str) -> list[tuple[str, str]]:
         hits.append(("absolute-home-path", label))
     base = cleaned.replace("/", " ").strip()
     for m in HEX_TOKEN.finditer(base):
-        if len(m.group(0)) != 40:
-            hits.append(("name-hex", label))
-            break
+        tok = m.group(0)
+        if is_known_object_id(tok) or shannon(tok) < 2.0:
+            continue
+        hits.append(("name-hex", label))
+        break
     for m in ENTROPY_TOKEN.finditer(base):
         if shannon(m.group(0)) >= 4.5:
             hits.append(("name-high-entropy", label))
@@ -520,7 +540,34 @@ def scan_index(root: str, findings: list) -> tuple[int, list[str]]:
     return len(entries), unmerged
 
 
-def scan_history(root: str, findings: list) -> dict[str, int]:
+def collect_objects(root: str) -> tuple[set[str], dict[str, list[str]]]:
+    """Return every object id in the repository and the fsck listing by type.
+
+    Runs once: the ids feed the hex exemption (a long hex string is exempt only if git itself
+    confirms it is an object here), and the listing feeds the unreachable-object scan.
+    """
+    ids: set[str] = set()
+    listing = git(root, "rev-list", "--objects", "--all").decode("utf-8", "replace")
+    for line in listing.splitlines():
+        sha = line.split(" ", 1)[0].strip()
+        if re.fullmatch(r"[0-9a-f]{40,64}", sha):
+            ids.add(sha)
+    unreachable: dict[str, list[str]] = {}
+    fsck = git(root, "fsck", "--unreachable", "--no-reflogs", "--no-progress", allow=(0,))
+    for line in fsck.decode("utf-8", "replace").splitlines():
+        parts = line.split()
+        if len(parts) < 3 or parts[0] not in {"unreachable", "dangling"}:
+            continue
+        otype, sha = parts[1], parts[2]
+        if otype not in {"blob", "tree", "commit", "tag"} or not re.fullmatch(r"[0-9a-f]{40,64}", sha):
+            continue
+        unreachable.setdefault(otype, []).append(sha)
+        ids.add(sha)
+    return ids, unreachable
+
+
+def scan_history(root: str, findings: list,
+                 unreachable: dict[str, list[str]] | None = None) -> dict[str, int]:
     shallow = git(root, "rev-parse", "--is-shallow-repository").strip()
     if shallow == b"true":
         raise ScanError("shallow repository: history is truncated and cannot be certified; "
@@ -552,17 +599,30 @@ def scan_history(root: str, findings: list) -> dict[str, int]:
     # Reflog subject lines can carry a message that no longer exists on any ref.
     findings.extend(scan_bytes(git(root, "reflog", "--all", "--format=%gs"), "reflog-subjects"))
 
-    fsck = git(root, "fsck", "--unreachable", "--no-reflogs", "--no-progress", allow=(0,))
-    blobs: list[str] = []
-    tags: list[str] = []
-    for line in fsck.decode("utf-8", "replace").splitlines():
-        parts = line.split()
-        if len(parts) < 3 or parts[0] not in {"unreachable", "dangling"}:
-            continue
-        if parts[1] == "blob":
-            blobs.append(parts[2])
-        elif parts[1] == "tag":
-            tags.append(parts[2])
+    if unreachable is None:
+        _, unreachable = collect_objects(root)
+    blobs: list[str] = list(unreachable.get("blob", []))
+    tags: list[str] = list(unreachable.get("tag", []))
+    commits_unreachable: list[str] = list(unreachable.get("commit", []))
+    # An unreachable commit is still pushed to anyone who asks for that object, and its message,
+    # its author line and its tree are all published surfaces.
+    for sha in commits_unreachable:
+        body = read_objects(root, [sha]).get(sha)
+        if body is None:
+            raise ScanError(f"unreachable commit {sha[:8]} cannot be read")
+        findings.extend(scan_bytes(body, f"unreachable-commit:{sha[:8]}"))
+        header = next((ln for ln in body.split(b"\n") if ln.startswith(b"tree ")), None)
+        if header is None:
+            raise ScanError(f"unreachable commit {sha[:8]} has no tree")
+        tree = header.split()[1].decode("ascii", "replace")
+        for mode, etype, esha, path in tree_entries(root, tree):
+            findings.extend(scan_name(path, f"unreachable-tree:{sha[:8]}:{path}"))
+            if etype != "blob":
+                raise ScanError(f"non-blob entry {path} in unreachable commit {sha[:8]}")
+            blob = read_objects(root, [esha]).get(esha)
+            if blob is None:
+                raise ScanError(f"blob {esha[:8]} of unreachable commit cannot be read")
+            findings.extend(scan_bytes(blob, f"unreachable-tree:{sha[:8]}:{path}"))
     # A deleted tag is still in the object store, and its message is a scanned surface when the
     # tag is reachable — so it stays one when it is not.
     for sha in tags:
@@ -575,12 +635,12 @@ def scan_history(root: str, findings: list) -> dict[str, int]:
             target = header.split()[1].decode("ascii", "replace")
             if object_type(root, target) == "blob":
                 blobs.append(target)
-    unreachable = blobs
-    for sha in unreachable:
+    for sha in blobs:
         for body in read_objects(root, [sha]).values():
             findings.extend(scan_bytes(body, f"unreachable:{sha[:8]}"))
 
-    return {"commits": len(commits), "blobs": len(blob_paths), "unreachable": len(unreachable)}
+    return {"commits": len(commits), "blobs": len(blob_paths),
+            "unreachable": len(blobs) + len(tags) + len(commits_unreachable)}
 
 
 # ------------------------------------------------------------------------------- entrypoint
@@ -606,13 +666,18 @@ def main(argv: list[str]) -> int:
              "refs": 0, "ref_objects": 0, "unreachable": 0, "bytecode": 0}
 
     try:
-        stats["files"], stats["links"], stats["bytecode"] = scan_worktree(root, findings)
-
         has_git = os.path.exists(os.path.join(root, ".git"))
+        unreachable: dict[str, list[str]] = {}
         if has_git:
             git_dir(root)  # validates that this really is a work tree
+            # Object ids must be known before any content is scanned: the hex exemption is
+            # "git confirms this is an object here", which cannot be decided afterwards.
+            ids, unreachable = collect_objects(root)
+            register_objects(ids)
         elif args.history or not args.no_index:
             raise ScanError(f"no git repository at {root}; index and history cannot be verified")
+
+        stats["files"], stats["links"], stats["bytecode"] = scan_worktree(root, findings)
 
         if has_git:
             # Refs are a published surface in their own right: scan them regardless of mode.
@@ -624,7 +689,7 @@ def main(argv: list[str]) -> int:
             stats["unmerged"] = len(unmerged)
 
         if args.history:
-            stats.update(scan_history(root, findings))
+            stats.update(scan_history(root, findings, unreachable))
 
     except ScanError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
