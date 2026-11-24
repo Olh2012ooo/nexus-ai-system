@@ -226,7 +226,7 @@ The tests are the contract. They build throwaway repositories in a temporary dir
 assert the scanner's verdict, not that a function was called.
 
 ```bash
-python3 tools/test_scan_publication.py   # 77 cases: bypasses, fail-closed states, names, refs
+python3 tools/test_scan_publication.py   # 78 cases: bypasses, fail-closed states, names, refs
 python3 tools/test_recompute.py          # 33 cases: published figures and argument validation
 ```
 

@@ -29,7 +29,7 @@ Optional, for a second opinion on the secret scanner: `gitleaks` or `detect-secr
 | `docs/` | Seven documents: architecture, roles, infrastructure, kanban, caching, economics, security |
 | `diagrams/` | `render.py` and the seven SVGs it generates — never hand-edit an SVG |
 | `calculations/` | `recompute.py`, the cost calculator |
-| `tools/` | Publication scanner, its 77 cases, link checker, diagram validator, calculator tests |
+| `tools/` | Publication scanner, its 78 cases, link checker, diagram validator, calculator tests |
 | `.github/workflows/` | `publication-check.yml`, which runs all of the above |
 
 ## Conventions
@@ -49,7 +49,7 @@ Optional, for a second opinion on the secret scanner: `gitleaks` or `detect-secr
 Run everything before opening a pull request:
 
 ```bash
-python3 tools/test_scan_publication.py    # scanner behaviour, 77 cases
+python3 tools/test_scan_publication.py    # scanner behaviour, 78 cases
 python3 tools/test_recompute.py           # calculator output and validation, 33 cases
 python3 tools/scan_publication.py --history
 python3 tools/check_links.py
