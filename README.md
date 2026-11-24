@@ -103,7 +103,8 @@ a delegated agent cannot "remember" what the orchestrator never told it.
 
 ## MODEL INTEGRATION
 
-One provider connection serves all profiles. Requests are stateless chat completions with tool
+One provider connection serves all profiles. The model in use is **DeepSeek-V4.1-Flash-1017**,
+addressed by the API alias `deepseek-flash`. Requests are stateless chat completions with tool
 schemas; the provider keeps a prompt-prefix cache, which is the only cache in the system. Model
 names, prices and context limits are documented in [economics](docs/economics.md); no endpoint,
 credential or account identifier is part of this repository.
@@ -226,7 +227,7 @@ The tests are the contract. They build throwaway repositories in a temporary dir
 assert the scanner's verdict, not that a function was called.
 
 ```bash
-python3 tools/test_scan_publication.py   # 78 cases: bypasses, fail-closed states, names, refs
+python3 tools/test_scan_publication.py   # 84 cases: bypasses, fail-closed states, names, refs
 python3 tools/test_recompute.py          # 33 cases: published figures and argument validation
 ```
 

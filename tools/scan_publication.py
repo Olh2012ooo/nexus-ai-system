@@ -156,9 +156,29 @@ def is_known_object_id(token: str) -> bool:
     return token.lower() in KNOWN_OBJECTS
 
 
+# A line carrying this marker is skipped, and every skipped line is counted and reported.
+# It exists for synthetic fixtures — values that look like credentials but are not — and it is
+# the one place where a human decision can silence a finding, so the count is always printed.
+ALLOWLIST_PRAGMA = "pragma: allowlist secret"
+ALLOWLISTED_LINES = 0
+
+
 def scan_text(text: str, label: str) -> list[tuple[str, str]]:
-    """Scan decoded text for secret and identity shapes."""
+    """Scan decoded text for secret and identity shapes.
+
+    Lines marked with the allowlist pragma are skipped and counted; everything else is scanned
+    line by line, so one marked line cannot silence the rest of a file.
+    """
+    global ALLOWLISTED_LINES
     hits: list[tuple[str, str]] = []
+    if ALLOWLIST_PRAGMA in text:
+        kept = []
+        for line in text.splitlines(keepends=True):
+            if ALLOWLIST_PRAGMA in line:
+                ALLOWLISTED_LINES += 1
+                continue
+            kept.append(line)
+        text = "".join(kept)
     for kind, pat in PATTERNS:
         if pat.search(text):
             hits.append((kind, label))
@@ -654,6 +674,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--quiet", action="store_true", help="print findings only")
     args = ap.parse_args(argv)
 
+    global ALLOWLISTED_LINES
+    ALLOWLISTED_LINES = 0
+
     root = os.path.abspath(args.root or DEFAULT_ROOT)
     if not os.path.isdir(root):
         print(f"ERROR: not a directory: {root}", file=sys.stderr)
@@ -720,7 +743,9 @@ def main(argv: list[str]) -> int:
             parts.append(f"{stats['index']} index entries")
         if args.history:
             parts += [f"{stats['commits']} commits", f"{stats['blobs']} blobs",
-                      f"{stats['unreachable']} unreachable blobs"]
+                      f"{stats['unreachable']} unreachable objects"]
+        if ALLOWLISTED_LINES:
+            parts.append(f"{ALLOWLISTED_LINES} lines marked allowlist secret")
         print("clean: " + ", ".join(parts))
     return 0
 

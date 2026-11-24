@@ -60,7 +60,8 @@ Exit codes: **0** clean, **1** findings (values redacted), **2** a check could n
 |---|---|
 | Key and token shapes, private-key blocks, JWTs | A secret encoded, encrypted or split at runtime |
 | Private IPv4, home paths, emails, private-looking domains | Hostnames without a public or internal suffix |
-| High-entropy strings and long hex runs (not 40 chars) | Exactly 40 hex characters (assumed git object id) |
+| High-entropy strings and long hex runs (exempt only when git confirms an object id here) | A hex credential that happens to equal an object id in the same repository |
+| Unreachable commits, tags and blobs (message, identity, tree, content) | Values explicitly marked `# pragma: allowlist secret` (counted in output) |
 | `.env`, dotfiles, extensionless files, spaced and control-character names | Content of files above the size limit (fails, does not skip) |
 | Staged content, including staged-then-reverted and staged deletions | Data encrypted with a key that never left the host |
 | Internal suffixes (`.internal`, `.local`, `.lan`, `.corp`, `.svc`, …) in content and in names | An internal name invented without any of those suffixes |

@@ -60,22 +60,28 @@ python3 tools/test_scan_publication.py        # isolated fail/pass cases
   newlines, binary content, symlink targets, every ref and whatever it points at (commit tree,
   tree, blob, annotated tag chain), and the names of every file, directory and ref. With
   `--history` (always used for the publication gate): every commit message, author and committer
-  identity, reflog subject, unreachable blob and deleted annotated tag. GitHub's pseudonymous
+  identity, reflog subject, unreachable commit (message, author line, tree paths and blobs),
+  unreachable blob and deleted annotated tag. GitHub's pseudonymous
   `users.noreply.github.com` addresses and its `noreply@`/`support@` role addresses are allowed;
   a real personal address is not.
 - **Replacement refs.** Git runs with `--no-replace-objects`, so `refs/replace/*` cannot make the
   scan see a history different from the one a push would transmit; the ref itself is reported for
   manual review.
 - **Secrets.** Token and key shapes, private-key blocks, JWTs, high-entropy strings, and long hex
-  runs (32–39 or 41+ characters; exactly 40 hex is assumed to be a git object id).
+  runs. A hex run is exempt only when git confirms the exact string is an object id in this
+  repository, or when it is a degenerate placeholder (`1111…`) that cannot carry secret entropy.
+  Length alone — including exactly 40 characters — earns nothing.
+- **Allowlist pragma.** A line containing `# pragma: allowlist secret` is skipped, and the
+  scanner prints how many lines it skipped. It exists for synthetic fixtures; a reviewable
+  exception, never a silent one.
 - **Redaction.** Findings print the kind and the file, never the value.
 - **Isolation.** Git runs with a scrubbed environment: `GIT_DIR`, `GIT_WORK_TREE` and the other
   repository-redirecting variables are removed, so the scan cannot be pointed at another
   repository than `--root`.
 - **Limits.** It cannot recognise a secret written as prose, split at runtime or across lines,
   base64-encoded, or hidden in a file above the size limit (that case fails, it is not skipped).
-  Messages of unreachable commits are not scanned; unreachable blobs are. A bare personal name
-  with a neutral e-mail address is not detected. A clean run means *no finding of the kinds we
+  A bare personal name with a neutral e-mail address is not detected, and a value marked with
+  the allowlist pragma is skipped by design. A clean run means *no finding of the kinds we
   detect*, not a guarantee of absence.
 
 ## Supported versions

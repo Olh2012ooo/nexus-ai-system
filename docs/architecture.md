@@ -3,6 +3,9 @@
 **What it is:** one control node that runs every agent, plus execution targets that run
 commands. Reasoning is centralised; execution is not.
 
+**Scope of this repository:** it documents the design and ships the tooling that verifies the
+documentation. The agent runtime itself is a separate installation and is not distributed here.
+
 ![System overview](../diagrams/system-overview.svg)
 
 ## Layers

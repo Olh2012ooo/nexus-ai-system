@@ -2,8 +2,8 @@
 
 **What it is:** the model provider keeps a disk cache of prompt prefixes. A request that
 starts with a prefix it has already seen pays a small fraction of the miss price — 1/20 at
-Claude Opus 5.5 prices ($0.20 vs $4.00 per million), 1/50 at DeepSeek Flash prices ($0.003 vs
-$0.15).
+Claude Opus 5.5 prices ($0.20 vs $4.00 per million), 1/50 at DeepSeek-V4.1-Flash-1017 prices
+($0.003 vs $0.15; API alias `deepseek-flash`).
 
 ![Caching architecture](../diagrams/caching-architecture.svg)
 

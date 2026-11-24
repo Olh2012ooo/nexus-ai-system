@@ -20,7 +20,7 @@ tokens.**
 |---|---|
 | Output share | **0.39 %** of tokens |
 | Cache hit | **99.2 %** of input tokens |
-| Model | DeepSeek Flash (`deepseek-flash`) |
+| Model | DeepSeek-V4.1-Flash-1017, API alias `deepseek-flash` |
 | Normalised cost | **$6.41 per billion → 62 NOK** |
 
 The rate comes from one aggregated, undated observation window: token volumes from the

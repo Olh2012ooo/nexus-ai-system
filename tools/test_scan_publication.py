@@ -165,6 +165,24 @@ def case_content() -> None:
     finally:
         shutil.rmtree(repo, ignore_errors=True)
 
+    # The allowlist pragma silences exactly one line, and the skip is reported.
+    repo = new_repo()
+    try:
+        write(repo, "fixture.py", "TOKEN = '" + FAKE_GH + "'  # pragma: allowlist secret\n")
+        proc = scan(repo)
+        ok = proc.returncode == 0 and "allowlist" in proc.stdout
+        report("allowlist pragma skips its own line and is reported", ok,
+               f"exit {proc.returncode}: {proc.stdout.strip()[:100]}")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+    repo = new_repo()
+    try:
+        write(repo, "leak.py", "# pragma: allowlist secret\nTOKEN = '" + FAKE_GH + "'\n")
+        expect("allowlist pragma does not silence another line", repo, 1)
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
     # A 40-character hex string that is *not* an object id is a secret-shaped value.
     hex40 = ENTROPY[:20] + HEX_SECRET[:20]
     repo = new_repo()
@@ -563,6 +581,35 @@ def case_metadata() -> None:
         git(repo, "update-index", "--add", "--cacheinfo",
             "160000," + "1" * 40 + ",vendor/lib")
         expect("submodule entry fails closed", repo, 2)
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+    # An unreachable commit keeps its message and its tree in the object store.
+    repo = new_repo()
+    try:
+        write(repo, "README.md", "text\n")
+        commit(repo, "init")
+        git(repo, "checkout", "-q", "-b", "throwaway")
+        write(repo, "notes.md", "text\n")
+        commit(repo, "add token " + FAKE_GH)
+        git(repo, "checkout", "-q", "-")
+        git(repo, "branch", "-D", "throwaway")
+        git(repo, "reflog", "expire", "--expire=now", "--all")
+        expect("secret in an unreachable commit message", repo, 1, "--history")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+    repo = new_repo()
+    try:
+        write(repo, "README.md", "text\n")
+        commit(repo, "init")
+        git(repo, "checkout", "-q", "-b", "throwaway")
+        write(repo, "hidden.txt", "token " + FAKE_GH + "\n")
+        commit(repo, "add file")
+        git(repo, "checkout", "-q", "-")
+        git(repo, "branch", "-D", "throwaway")
+        git(repo, "reflog", "expire", "--expire=now", "--all")
+        expect("secret in the tree of an unreachable commit", repo, 1, "--history")
     finally:
         shutil.rmtree(repo, ignore_errors=True)
 
